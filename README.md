@@ -26,6 +26,10 @@ However, this hasn't happened because everything is still built around verbosity
 
 When state graphs are created, it should be created with reusability in mind. For instance, a state graph can be reduced into 2 or more sub state graphs.
 
+>State Graphs Should NEVER Depict Side-Effects Or Its Causality
+
+Whenever your application goes into an error-state (Form Validation Errors, HTTP Errors), your state graphs should never ever deal with these situation. It should also never depict it as a state.
+
 >Isolating State Containers From Most UI Updates
 
 UI state is never meant to be tracked or persisted in a state container. UI state is only useful immediately beofre it causes a view re-render or view layer update. After that, it is no longer useful.
@@ -38,28 +42,51 @@ UI state changes (driven by state graphs) will mostly trigger view updates excep
 
 > filename:FormBox.js
 ```js
+import React, { Component, Children, cloneElement } from 'react';
+import kahtox from 'kahtox';
 
-import ahtox from 'ahtox';
+const validateInputGuard = function (formElements){
+	return formElements.reduce(
+		(elem, acc) => (
+			elem.value.length !== 0 && elem.getAttribute('pristine') === 'true' && acc
+		), 
+		true
+	)
+};
 
 let stateGraph = {
 	$initial: 'empty',
 	states: {
 		'empty': {
-			keys: {
-				nextState: 'filling'
+			'input-keys': {
+				nextState: 'filling',
+				action: null
 			}
 		},
 		'filling': {
+			'input-keys': {
+				nextState: 'filling',
+				action: null
+			},
+			'input-change': {
+				nextState: 'filling',
+				action: null
+			},
 			'mouse-over-button': {
-				nextState: 'filled'
+				nextState: 'filled',
+				action: null,
+				guard: validateInputGuard
 			},
 			'tab-into-button': {
-				nextState: 'filled'
+				nextState: 'filled',
+				action: null,
+				guard: validateInputGuard
 			}
 		},
 		'filled': {
 			'click-button': {
-				nextState: 'empty'
+				nextState: 'empty',
+				action: null
 			}
 		}
 	}
@@ -76,15 +103,21 @@ class FormBox extends React.Component {
 	
 	this.formInputs = {};
 	
-	this.modeGrapher.afterTransition((mode) => this.setState({ mode }))
+	this.modeGrapher.afterTransition(mode => this.setState(prevState => Object.assign(prevState, { mode })))
    }
    
    componentDidMount(){
    	;
    }
    
+   onInputKeys(e){
+   	this.formInputs[e.target.name] = e.target.value;
+	this.modeGrapher.dispatch('filling');
+   }
+   
    onInputChange(e){
-   	this.formInputs[e.traget.name] = e.target.value;
+   	this.formInputs[e.target.name] = e.target.value;
+	this.modeGrapher.dispatch('filling');
    }
    
    render(){
@@ -98,9 +131,9 @@ class FormBox extends React.Component {
 		addListeners = true;
 	
 	{/* https://mxstbr.blog/2017/02/react-children-deepdive/ */}
-	{(mode === 'empty') && React.Children.map(children, (child, i) => {
+	{(mode === 'empty') && Children.map(children, (child, i) => {
 		this.formInputs[child.name] = child.value
-		return React.cloneElement(child, {
+		return cloneElement(child, {
 		      onChange: this.onInputChange
 	    	})
 	})}
@@ -109,9 +142,11 @@ class FormBox extends React.Component {
 
 ```
 
-> filename: Todos.js
+> filename: TodoApp.js
 ```js
-import ahtox from 'ahtox';
+import React, { Component } from 'react';
+import ReactDOM from 'react-dom';
+import kahtox from 'kahtox';
 import { createStore, applyMiddleware } from 'redux';
 
 let stateGraph = {
@@ -120,39 +155,47 @@ let stateGraph = {
 	   'idle': {
 		send:{ // HTTP POST, PUT, PATCH, DELETE
 			nextState: 'before-send'
+			action:'addTodo'
 		},
 		fetch:{ // HTTP GET, HEAD
-			nextState: 'before-fetch'
+			nextState: 'before-fetch',
+			action: 'loadTodos'
 		}
 	   },
 
 	   'before-fetch': {
 		httpreq: { 
-			nextState:'fetching'
+			nextState:'fetching',
+			action:null
 		}
 	   },
 
 	   'before-send': {
 		httpreq: {
-			nextState:'sending'
+			nextState:'sending',
+			action:null
 		}
 	   },
 
 	   'fetching':{
 		success:{
-			nextState: 'idle'
+			nextState: 'idle',
+			action:null
 		},
 		failure:{
-			nextState: 'idle'
+			nextState: 'idle',
+			action:null
 		}
 	   },
 
 	   'sending': {
 	       success:{
-			nextState: 'idle'
+			nextState: 'idle',
+			action:null
 		},
 		failure:{
-			nextState: 'idle'
+			nextState: 'idle',
+			action:null
 		}
 	   }
    }
@@ -170,32 +213,32 @@ let store = createStore(function todos(state = [], action) {
   }
 }, []);
 
-class Todos extends React.Component {
+class TodoApp extends React.Component {
    constructor(prop){
 	super(props);
 	this.modeGrapher = kahtox.makeModeGrapher(stateGraph, (actionType, payload) => store.dispatch({ type:actionType, payload }))
 	this.state = {
  		mode: modeGrapher.initial,
-		parentMode: null
+		parentMode: null,
+		todos: props.todos;
 	};
 	
-	this.todos = props.todos;
-	
-	this.modeGrapher.afterTransition(mode => this.setState({ mode }))
+	this.modeGrapher.afterTransition(mode => this.setState(prevState => Object.assign(prevState, { mode })))
    }
 
    componentDidMount(){
    	const actionType = 'loadTodos';
-	this.modeGrapher.dispatch(actionType, { all:true });
+	this.modeGrapher.dispatch('before-fetch', { perPage: 5, page:0 });
    }
    
    submitDataToServer(formData){
    	const actionType = 'addTodos'
-   	this.modeGrapher.dispatch(actionType, { url: '', method: 'POST', data:formData });
+   	this.modeGrapher.dispatch('before-send', { url: '', method: 'POST', data:formData });
    }
 
    render(){
 	const mode = this.state.mode;
+	const todos = this.state.todos;
 
 	return (
 		{(mode === 'idle') && <FormBox method="POST" mode={mode} handleSubmit={this.submitDataToServer.bind(this)}>
@@ -203,22 +246,24 @@ class Todos extends React.Component {
 		   <Input readonly=false name="todoDesc" value="" />
 		   <Input readonly=false type="checkbox" name="todoComplete" value="" />
 		   <Button disabled=false text="ADD" />
-		</FormBox> }
+		</FormBox> <hr /> <TodoList todos={todos} /> }
 		{(mode === 'before-send') && <FormBox method="POST" mode={mode} handleSubmit={this.submitDataToServer.bind(this)}>
 		   <Input readonly=false name="todoTitle" value="" />
 		   <Input readonly=false name="todoDesc" value="" />
 		   <Input readonly=false type="checkbox" name="todoComplete" value="" />
 		   <Button disabled=true text="ADD" /> {/* Disable the button so submit event can't be triggere again */}
-		</FormBox> }
+		</FormBox> <hr /> <TodoList todos={todos} /> }
 		{(mode === 'sending') && <FormBox method="POST" mode={mode}>
 		   <Input readonly=true /> 
 		   <Input readonly=true /> 
 		   <Input readonly=true /> 
 		   <Button disabled=true text="ADD" /> {/* Disable the entire form */}
-		</FormBox> }
+		</FormBox> <hr /> <TodoList todos={todos} /> }
 	)
    }
 }
+
+ReactDOM.render(<TodoApp todos={[]} />, document.body);
 ```
 
 ## License
