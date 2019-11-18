@@ -92,18 +92,58 @@ let stateGraph = {
 	}
 };
 
+const getUTF8StringSize = (str) => {
+
+	let sizeInBytes = str.split('')
+    .map(function( ch ) {
+      return ch.charCodeAt(0);
+    }).map(function( uchar ) {
+      // The reason for this is explained later in
+      // the section “An Aside on Text Encodings”
+      return uchar < 128 ? 1 : 2;
+    }).reduce(function( curr, next ) {
+      return curr + next;
+    }, 0);
+    
+  return sizeInBytes;
+};
+
+const debounce = (func, wait, immediate) => {
+	let timeout;
+	return function() {
+		let context = this;
+		let args = arguments;
+		this later = function() {
+			timeout = null;
+			if (!immediate) func.apply(context, args);
+		};
+		let callNow = immediate && !timeout;
+		clearTimeout(timeout);
+		timeout = setTimeout(later, wait);
+		if (callNow) func.apply(context, args);
+	};
+};
+
 class FormBox extends Component {
    constructor(prop){
 	super(props);
 	this.grapher = kahtox.makeGrapher(stateGraph)
 	this.state = {
 		mode: this.grapher.initial,
-		parentMode: this.props.mode
+		parentMode: this.props.mode,
+		elements: this.props.children
 	}
 	
 	this.formInputs = {};
 	
 	this.grapher.afterTransition(mode => this.setState(prevState => Object.assign(prevState, { mode })))
+	this.debounced = debounce(function(e, grapher, inputs) {
+		let regexp = new RegExp(e.target.getAttribute('data-pattern'));
+   		if(regexp.exec(inputs[e.target.name].text)){
+			inputs[e.target.name].status = 'error';
+		}
+		grapher.dispatch('filling', null, false);
+	}, 3400);
    }
    
    componentDidMount(){
@@ -111,10 +151,8 @@ class FormBox extends Component {
    }
    
    onInputKeys(e){
-   	debounce(() => {
-   		this.formInputs[e.target.name] = { text:e.target.value, status:e.target.getAttribute('data-input-status') };
-		this.grapher.dispatch('filling', null, false);
-	}, 3400);
+   	this.formInputs[e.target.name] = { text:e.target.value, status: 'dirty' };
+   	this.debounced(e, this.grapher, this.formInputs)
    }
    
    onInputChange(e){
@@ -125,19 +163,48 @@ class FormBox extends Component {
    render(){
    	const mode = this.state.mode;
 	const parentMode = this.props.mode;
-	const children = this.props.children;
+	const children = this.state.children;
 	
 	let addListeners = false;
+	let childInputProps = {
+	
+	};
+	let childButtonProps = {
+	
+	};
 	
 	if(parentMode == 'idle')
 		addListeners = true;
+		
+	if(addListeners){
+		childInputProps = {
+			onChange: this.onInputChange.bind(this),
+		      	onKeyDown: this.onInputKeys.bind(this)
+		};
+		
+		childButtonProps = {
+			onClick: this.props.handleSubmit
+		}
+	}
 	
 	{/* https://mxstbr.blog/2017/02/react-children-deepdive/ */}
 	{(mode === 'empty') && Children.map(children, (child, i) => {
-		this.formInputs[child.name] = child.value
-		return cloneElement(child, {
-		      onChange: this.onInputChange
-	    	})
+		if(child.type === 'text' || child.type === 'chechbox') {
+			this.formInputs[child.name] = { text: child.value, status: 'pristine' }
+			return cloneElement(child, childInputProps);
+		}else if(child.type === 'button' && (Children.count(children) === i + 1)){
+			return cloneElement(child, childButtonProps);
+		}
+	})}
+	
+	{(mode === 'filling' || mode === 'filled') && Children.map(children, (child, i) => {
+		childInputProps.value = this.formInputs[child.name].text;
+		childInputProps.status = this.formInputs[child.name].status;
+		if(child.type === 'text' || child.type === 'chechbox') {
+			return cloneElement(child, childInputProps);
+		}else if(child.type === 'button' && (Children.count(children) === i + 1)){
+			return cloneElement(child, childButtonProps);
+		}
 	})}
    }
 }
@@ -154,7 +221,6 @@ import kahtox from 'kahtox';
 class TodoList extends Component {
 	constructor(props){
 		super(props);
-		
 	}
 	
 	render(){
@@ -162,7 +228,7 @@ class TodoList extends Component {
 		return (
 			<ul>
 			{todos.map(function(todo){
-				<li></li>
+				return (<li><h3>{todo.title}</h3><p>{todo.desc}</p></li>);
 			})}
 			</ul>
 		);
