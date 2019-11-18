@@ -12,7 +12,7 @@ class Grapher {
     this.transitionHandler = null;
   }
   
-  dispatch(transitionEventName = '', domainLayerPayload = null, notifyView = true){
+  dispatch(transitionEventName = '', domainLayerData = null, notifyView = true){
     const grapherEvents = this.states[this.currentState]; // grab all possible actions under this 'current state'
     const transitionMeta = grapherEvents[transitionEventName]; // grab the data state layer action we are interested in for this current 'dispatch'
 
@@ -24,10 +24,10 @@ class Grapher {
     }
 
     if (transitionMeta.action) { 
-      if(typeof transitionMeta.guard !== 'function' || transitionMeta.guard(domainLayerPayload)){
+      if(typeof transitionMeta.guard !== 'function' || transitionMeta.guard(domainLayerData)){
           nextState(transitionMeta.nextState); // change the state - new current state
       }
-      this.domainStateLayerWrapperFn(action, payload, { grapher: this, meta: transitionMeta });
+      this.domainStateLayerWrapperFn(transitionMeta.action, { data: domainLayerData, grapher: this, meta: transitionMeta });
     }
   }
   
@@ -36,13 +36,13 @@ class Grapher {
   }
 }
 
-const khatox = {
+const kahtox = {
       makeGrapher(graph, wrapperFn){
           if(typeof wrapperFn !== 'function'){
             wrapperFn = () => true
           }
           
-          return new Grapher(grapper, wrapperFn);
+          return new Grapher(graph, wrapperFn);
       }
 };
 
