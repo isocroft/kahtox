@@ -1,11 +1,11 @@
 # kahtox
-A small JavaScript library based on state machines (but not entirely) for isolating and managing its own UI-state (transient / non-persisted) layer while controlling a Domain-state (non-transient / persisted) layer like Redux, MobX, Radixx.
+A small JavaScript library based on state machines (but not entirely) for isolating and managing its own UI-state (transient / non-persisted) layer while controlling a Domain-state (non-transient / persisted) layer like Redux, Radixx.
 
 ## Inspiration
 
 This work was inspired by earlier works by [David K. Piano](https://twitter.com/davidkpiano) on [**xstate**](https://github.com/davidkpiano/xstate) and [Krasimir Tsonev](http://krasimirtsonev.com/) on [**stent**](https://github.com/krasimir/stent). Drawing from their work and thinking deeply about the problem, it was now clear that there needed to be a paradigmn shift in the way we approached state management. *Xstate* for me is neat and helpful but is also too verbose and seeks to replace *Redux*. I have all these lingua and terminilogy like (Sequence, History, Orthogonal, Events, States, Effects, Guard) that i have to learn to make sense of it all. *Stent* on the other hand is less verbose but also seeks to replace *Redux* completely and adds composability problems (how do you compose one or more state machines together).
 
-Now, *Kahtox* still makes use of finite state machine graphs and transitions too but doesn't try to replace libraires like *MobX* and *Redux* but seeks to work along side these libraires. The reason for this is that UI state is NEVER meant to be stored in any state container because it is TRANSIENT and is totally irreleveant after a record of its occurence. UI state doesn't also need to be tracked for changes. Only Domain state needs to be stored in a state container and tracked for changes.
+Now, *Kahtox* still makes use of finite state machine graphs and transitions too but doesn't try to replace libraires like *Redux* or *Radixx* but seeks to work along side these libraires. The reason for this is that UI state is NEVER meant to be stored in any state container because it is TRANSIENT and is totally irreleveant after a record of its occurence. UI state doesn't also need to be tracked for changes. Only Domain state needs to be stored in a state container and tracked for changes.
 
 By seperating both state types into their respective layers and having one (UI state) control the other (Domain state), it becomes easier to manage outcomes and enforce guards for user interface interactions.
 
@@ -18,7 +18,7 @@ The need to separate today's monolith state management layer architecure into a 
 
 This need is long ovedue. state management libraries like Redux were under too much pressure to manage both UI State (which actually doesn't need to be persisted) and Domain state (which is actually meant to be put into a state container and persisted across web sessions)
 
-However, this hasn't happened because everything is still built around verbosity and replacement. The idea is not to seek to replace Redux (even though [Redux could be better redesigned](https://hackernoon.com/redesigning-redux-b2baee8b8a38)) but to reduce the amount of "useless work" that libraries like MobX or Redux are doing - which is tracking UI State in the store state container.
+However, this hasn't happened because everything is still built around verbosity and replacement. The idea is not to seek to replace Redux (even though [redux could be better redesigned](https://hackernoon.com/redesigning-redux-b2baee8b8a38)) but to reduce the amount of "useless work" that libraries like MobX or Redux are doing - which is tracking UI State in the store state container.
 
 ## Concepts
 
@@ -45,10 +45,10 @@ UI state changes (driven by state graphs) will mostly trigger view updates excep
 import React, { Component, Children, cloneElement } from 'react';
 import kahtox from 'kahtox';
 
-const validateInputGuard = function (formElements){
-	return formElements.reduce(
-		(elem, acc) => (
-			elem.value.length !== 0 && elem.getAttribute('pristine') === 'true' && acc
+const validateFormGuard = function ({ data }){
+	return data.reduce(
+		(val, acc) => (
+			val.text.length !== 0 && val.status === 'pristine' && acc
 		), 
 		true
 	)
@@ -75,12 +75,12 @@ let stateGraph = {
 			'mouse-over-button': {
 				nextState: 'filled',
 				action: null,
-				guard: validateInputGuard
+				guard: validateFormGuard
 			},
 			'tab-into-button': {
 				nextState: 'filled',
 				action: null,
-				guard: validateInputGuard
+				guard: validateFormGuard
 			}
 		},
 		'filled': {
@@ -92,18 +92,18 @@ let stateGraph = {
 	}
 };
 
-class FormBox extends React.Component {
+class FormBox extends Component {
    constructor(prop){
 	super(props);
-	this.modeGrapher = kahtox.makeModeGrapher(stateGraph)
+	this.grapher = kahtox.makeGrapher(stateGraph)
 	this.state = {
-		mode: this.modeGrapher.initial,
+		mode: this.grapher.initial,
 		parentMode: this.props.mode
 	}
 	
 	this.formInputs = {};
 	
-	this.modeGrapher.afterTransition(mode => this.setState(prevState => Object.assign(prevState, { mode })))
+	this.grapher.afterTransition(mode => this.setState(prevState => Object.assign(prevState, { mode })))
    }
    
    componentDidMount(){
@@ -111,13 +111,15 @@ class FormBox extends React.Component {
    }
    
    onInputKeys(e){
-   	this.formInputs[e.target.name] = e.target.value;
-	this.modeGrapher.dispatch('filling');
+   	debounce(() => {
+   		this.formInputs[e.target.name] = { text:e.target.value, status:e.target.getAttribute('data-input-status') };
+		this.grapher.dispatch('filling', null, false);
+	}, 3400);
    }
    
    onInputChange(e){
-   	this.formInputs[e.target.name] = e.target.value;
-	this.modeGrapher.dispatch('filling');
+   	this.formInputs[e.target.name] = { text:e.target.value, status:e.target.getAttribute('data-input-status') };
+	this.grapher.dispatch('filling');
    }
    
    render(){
@@ -140,7 +142,36 @@ class FormBox extends React.Component {
    }
 }
 
+export default FormBox;
+
 ```
+
+> filename: TodoList.js
+```js
+import React, { Component } from 'react';
+import kahtox from 'kahtox';
+
+class TodoList extends Component {
+	constructor(props){
+		super(props);
+		
+	}
+	
+	render(){
+		const todos = this.props.todos;
+		return (
+			<ul>
+			{todos.map(function(todo){
+				<li></li>
+			})}
+			</ul>
+		);
+	}
+}
+
+export default TodoList
+
+````
 
 > filename: TodoApp.js
 ```js
@@ -149,12 +180,15 @@ import ReactDOM from 'react-dom';
 import kahtox from 'kahtox';
 import { createStore, applyMiddleware } from 'redux';
 
+import FormBox from './Formbox.js';
+import TodoList from './TodoList.js';
+
 let stateGraph = {
    $initial: 'idle',
    states:{
 	   'idle': {
 		send:{ // HTTP POST, PUT, PATCH, DELETE
-			nextState: 'before-send'
+			nextState: 'before-send',
 			action:'addTodo'
 		},
 		fetch:{ // HTTP GET, HEAD
@@ -164,36 +198,36 @@ let stateGraph = {
 	   },
 
 	   'before-fetch': {
-		httpreq: { 
+		'http-req': { 
 			nextState:'fetching',
 			action:null
 		}
 	   },
 
 	   'before-send': {
-		httpreq: {
+		'http-req': {
 			nextState:'sending',
 			action:null
 		}
 	   },
 
 	   'fetching':{
-		success:{
+		'http-req-success':{
 			nextState: 'idle',
 			action:null
 		},
-		failure:{
+		'http-req-failure':{
 			nextState: 'idle',
 			action:null
 		}
 	   },
 
 	   'sending': {
-	       success:{
+	       'http-req-success':{
 			nextState: 'idle',
 			action:null
 		},
-		failure:{
+		'http-req-failure':{
 			nextState: 'idle',
 			action:null
 		}
@@ -213,27 +247,28 @@ let store = createStore(function todos(state = [], action) {
   }
 }, []);
 
-class TodoApp extends React.Component {
+class TodoApp extends Component {
    constructor(prop){
 	super(props);
-	this.modeGrapher = kahtox.makeModeGrapher(stateGraph, (actionType, payload) => store.dispatch({ type:actionType, payload }))
+	this.grapher = kahtox.makeGrapher(stateGraph, (actionType, payload) => store.dispatch({ type:actionType, payload }))
 	this.state = {
- 		mode: modeGrapher.initial,
+ 		mode: this.grapher.initial,
 		parentMode: null,
-		todos: props.todos;
+		todos: store.getState()
 	};
 	
-	this.modeGrapher.afterTransition(mode => this.setState(prevState => Object.assign(prevState, { mode })))
+	let select = (state) => state.todos;
+	
+	store.subscribe(() => this.setState(prevState => Object.assign(prevState, { todos: select(store.getState()) })))
+	this.grapher.afterTransition(mode => this.setState(prevState => Object.assign(prevState, { mode })))
    }
 
    componentDidMount(){
-   	const actionType = 'loadTodos';
-	this.modeGrapher.dispatch('before-fetch', { perPage: 5, page:0 });
+	this.grapher.dispatch('before-fetch', { perPage: 5, page:0 });
    }
    
    submitDataToServer(formData){
-   	const actionType = 'addTodos'
-   	this.modeGrapher.dispatch('before-send', { url: '', method: 'POST', data:formData });
+   	this.grapher.dispatch('before-send', { url: 'https://localhost:4005/todos', method: 'POST', body:formData });
    }
 
    render(){
@@ -248,22 +283,22 @@ class TodoApp extends React.Component {
 		   <Button disabled=false text="ADD" />
 		</FormBox> <hr /> <TodoList todos={todos} /> }
 		{(mode === 'before-send') && <FormBox method="POST" mode={mode} handleSubmit={this.submitDataToServer.bind(this)}>
-		   <Input readonly=false name="todoTitle" value="" />
-		   <Input readonly=false name="todoDesc" value="" />
-		   <Input readonly=false type="checkbox" name="todoComplete" value="" />
+		   <Input readonly=false name="todoTitle" />
+		   <Input readonly=false name="todoDesc" />
+		   <Input readonly=false type="checkbox" name="todoComplete" />
 		   <Button disabled=true text="ADD" /> {/* Disable the button so submit event can't be triggere again */}
 		</FormBox> <hr /> <TodoList todos={todos} /> }
 		{(mode === 'sending') && <FormBox method="POST" mode={mode}>
-		   <Input readonly=true /> 
-		   <Input readonly=true /> 
-		   <Input readonly=true /> 
+		   <Input readonly=true name="todoTitle" /> 
+		   <Input readonly=true name="todoDesc" />
+		   <Input readonly=true type="checkbox" name="todoComplete" /> 
 		   <Button disabled=true text="ADD" /> {/* Disable the entire form */}
 		</FormBox> <hr /> <TodoList todos={todos} /> }
 	)
    }
 }
 
-ReactDOM.render(<TodoApp todos={[]} />, document.body);
+ReactDOM.render(<TodoApp />, document.body);
 ```
 
 ## License
