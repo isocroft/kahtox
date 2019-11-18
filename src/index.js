@@ -19,13 +19,15 @@ class Grapher {
     let nextState = (state) => { 
         this.currentState = state; 
         if(typeof this.transitionHandler === 'function') {
-            this.transitionHandler.call(state); 
+            this.transitionHandler.call(this, state); 
         }
     }
 
     if (transitionMeta.action) { 
       if(typeof transitionMeta.guard !== 'function' || transitionMeta.guard(domainLayerData)){
-          nextState(transitionMeta.nextState); // change the state - new current state
+          if(notifyView){
+              nextState(transitionMeta.nextState); // change the state - new current state
+          }
       }
       this.domainStateLayerWrapperFn(transitionMeta.action, { data: domainLayerData, grapher: this, meta: transitionMeta });
     }
