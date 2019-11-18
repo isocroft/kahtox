@@ -5,7 +5,7 @@
 
 
 class Grapher {
-  constructor(garph, wrapperFn){
+  constructor(graph, wrapperFn){
     this.states = graph.states;
     this.initial = this.currentState = graph.$initial;
     this.domainStateLayerWrapperFn = wrapperFn;
@@ -23,7 +23,7 @@ class Grapher {
         }
     }
 
-    if (transitionMeta.action) { 
+    if (transitionMeta && transitionMeta.action) { 
       if(typeof transitionMeta.guard !== 'function' || transitionMeta.guard(domainLayerData)){
           if(notifyView){
               nextState(transitionMeta.nextState); // change the state - new current state
