@@ -62,7 +62,7 @@ const isString = (value) => {
     return strictTypeOf(value, 'string')
 }
 
-const isObject = (value) => {
+const isPlainObject = (value) => {
     return strictTypeOf(value, 'object')
 }
 
@@ -82,26 +82,28 @@ class Grapher {
     this.transitionHandler = null;
   }
   
-  dispatch(transitionEventName = '', domainLayerData = null, notifyView = true){
+  dispatch(transitionEventName = '', domainLayerData = null){
     const grapherEvents = this.states[this.currentState] || {}; // grab all possible actions under this 'current state'
     const transitionMeta = grapherEvents[transitionEventName]; // grab the data state layer action we are interested in for this current 'dispatch'
 
     let nextState = (state) => { 
         this.currentState = state; 
+        let canNotify = (this.currentState !== this.initial);
+        canNotify |= Boolean(transitionMeta.notifyView);
         if(isFunction(this.transitionHandler)) {
-            this.transitionHandler.call(this, state); 
+            if(Boolean(canNotify)){
+                this.transitionHandler(state); 
+            }
         }
     };
 
     if ((!isNull(transitionMeta) || !isUndefined(transitionMeta)) 
-          && isObject(transitionMeta)) { 
-      if(!isFunction(transitionMeta.guard) || (transitionMeta.guard(domainLayerData) === true)){
-          if(notifyView === true){
-              nextState(transitionMeta.nextState); // change the state - new current state
-          }
+          && isPlainObject(transitionMeta)) { 
+      if(!isFunction(transitionMeta.guard) || (transitionMeta.guard({ payload: domainLayerData }) === true)){
+           nextState(transitionMeta.nextState); // change the state - new current state
       }
       if(isString(transitionMeta.action)) {
-        this.domainStateLayerWrapperFn(transitionMeta.action, { data: domainLayerData, grapher: this, meta: transitionMeta });
+        this.domainStateLayerWrapperFn(transitionMeta.action, { payload: domainLayerData, grapher: this, meta: transitionMeta });
       }
     }
   }
