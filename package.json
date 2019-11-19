@@ -28,7 +28,9 @@
   "keywords":[
     "state-graphs",
     "reusable-state-graphs",
-    "circular-direct-ui-state-graphs",
+    "circular-directed-ui-state-graphs",
+    "transition-hooks",
+    "gating",
     "sub-graphs",
     "radixx",
     "redux"
