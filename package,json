@@ -1,0 +1,36 @@
+{
+ "name": "kahtox",
+  "version": "0.1.1",
+  "description": "",
+  "repository": "isocroft/kahtox",
+  "license": "MIT",
+  "author": "Ifeora Okechukwu",
+  "main": "index.js",
+  "module": "dist/esm/kahtox.js",
+  "unpkg": "dist/umd/kahtox.js",
+  "files": [
+    "index.js",
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+  
+  },
+  "dependencies": {
+  
+  },
+  "devDependencies": {},
+  "browserify":{
+    "transform": [
+      "loose-envify"
+    ]
+  },
+  "keywords":[
+    "state-graphs",
+    "reusable-state-graphs",
+    "circular-direct-ui-state-graphs",
+    "sub-graphs",
+    "radixx",
+    "redux"
+  ]
+}
