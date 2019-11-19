@@ -77,6 +77,7 @@ const isUndefined = (value) => {
 class Grapher {
   constructor(graph, wrapperFn){
     this.states = graph.states;
+    this.prevState = null;
     this.initial = this.currentState = graph.$initial;
     this.domainStateLayerWrapperFn = wrapperFn;
     this.transitionHandler = null;
@@ -85,27 +86,33 @@ class Grapher {
   dispatch(transitionEventName = '', domainLayerData = null){
     const grapherEvents = this.states[this.currentState] || {}; // grab all possible actions under this 'current state'
     const transitionMeta = grapherEvents[transitionEventName]; // grab the data state layer action we are interested in for this current 'dispatch'
-    const hasAction = isString(transitionMeta.action);
+    const hasAction = false;
       
     let nextState = (state) => { 
+        this.prevState = this.currentState;
         this.currentState = state; 
         let canNotify = (this.currentState !== this.initial);
         canNotify |= Boolean(transitionMeta.notifyView);
         if(isFunction(this.transitionHandler)) {
             if(Boolean(canNotify)){
-                this.transitionHandler(state, (hasAction ? null : domainLayerData)); 
+                this.transitionHandler(state, (hasAction ? null : domainLayerData), (!hasAction && isError(domainLayerData))); 
             }
         }
     };
 
     if ((!isNull(transitionMeta) || !isUndefined(transitionMeta)) 
           && isPlainObject(transitionMeta)) { 
+        hasAction = isString(transitionMeta.action);
       if(!isFunction(transitionMeta.guard) || (transitionMeta.guard({ payload: domainLayerData }) === true)){
            nextState(transitionMeta.nextState); // change the state - new current state
       }
       if(hasAction) {
         this.domainStateLayerWrapperFn(transitionMeta.action, { payload: domainLayerData, grapher: this, meta: transitionMeta });
       }
+    }else{
+        if(isPlainObject(console) && isFunction(console.error)){
+            console.error(`Invalid State Transition For State Graph: from '${this.currentState}'`);
+        }
     }
   }
   
