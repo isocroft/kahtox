@@ -136,7 +136,7 @@ let stateGraph = {
 			}
 		},
 		'filled': {
-			'click-button': {
+			'button-click': {
 				nextState: 'empty',
 				action: null
 			}
@@ -194,7 +194,7 @@ class FormBox extends Component {
    		if(!regexp.test(self.formInputs[e.target.name].text)){
 			self.formInputs[e.target.name].status = 'error';
 		}
-		self.grapher.dispatch('filling', null, false);
+		self.grapher.dispatch('input-keys', null, false);
 	}, 3400);
    }
    
@@ -209,12 +209,13 @@ class FormBox extends Component {
    
    onInputChange(e){
    	this.formInputs[e.target.name] = { text:e.target.value, status:e.target.getAttribute('data-input-status') };
-	this.grapher.dispatch('filling');
+	this.grapher.dispatch('input-change');
    }
    
    render(){
    	const mode = this.state.mode;
 	const parentMode = this.props.mode;
+	const handleSubmit = this.props.handleSubmit;
 	const children = this.state.children;
 	
 	let addListeners = false;
@@ -235,7 +236,10 @@ class FormBox extends Component {
 		};
 		
 		childButtonProps = {
-			onButtonClick: this.props.handleSubmit
+			onButtonClick: (e) => {
+				this.grapher.dispatch('button-click')
+				handleSubmit(e);
+			}
 		}
 	}
 	
@@ -394,11 +398,11 @@ class TodoApp extends Component {
    }
 
    componentDidMount(){
-	this.grapher.dispatch('before-fetch', { perPage: 5, page:0 });
+	this.grapher.dispatch('fetch', { perPage: 5, page:0 });
    }
    
    submitDataToServer(formData){
-   	this.grapher.dispatch('before-send', { url: 'https://localhost:4005/todos', method: 'POST', body:formData });
+   	this.grapher.dispatch('send', { url: 'https://localhost:4005/todos', method: 'POST', body:formData });
    }
 
    render(){
