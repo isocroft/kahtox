@@ -40,7 +40,57 @@ UI state changes (driven by state graphs) will mostly trigger view updates excep
 
 ## Getting Started
 
-> filename:FormBox.js
+> filename: Button.js
+```js
+import React, { Component } from 'react';
+
+class Button extends Component {
+	constructor(props){
+		super(props);
+	}
+	
+	render(){
+		const type = this.props.type || 'button';
+		const text = this.props.text;
+		const disabled = this.props.disabled;
+		const onButtonClick = this.props.onButtonClick || () => true;
+		return (
+			disabled === true 
+			? <button type={type} disabled="disabled" onClick={onButtonClick}>{text}</button>
+			: <button type={type} onClick={onButtonClick}>{text}</button>
+		);
+	}
+}
+
+export default Button;
+```
+
+> filename: Input.js
+```js
+import React, { Component } from 'react';
+
+class Input extends Component {
+	constructor(props){
+		super(props);
+	}
+	
+	render(){
+		const type = this.props.type;
+		const value = this.props.value;
+		const name = this.props.name;
+		const onInputChange = this.props.onInputChange;
+		const onInputKeyDown = this.props.onInputKeyDown;
+		
+		return (
+			<input type={type} name={name} value={value} onChange={onInputChange} />
+		);
+	}
+}
+
+export default Input;
+```
+
+> filename: FormBox.js
 ```js
 import React, { Component, Children, cloneElement } from 'react';
 import kahtox from 'kahtox';
@@ -137,12 +187,12 @@ class FormBox extends Component {
 	this.formInputs = {};
 	
 	this.grapher.afterTransition(mode => this.setState(prevState => Object.assign(prevState, { mode })))
-	this.debounced = debounce(function(e, grapher, inputs) {
+	this.debounced = debounce(function(e, self) {
 		let regexp = new RegExp(e.target.getAttribute('data-pattern'));
-   		if(regexp.exec(inputs[e.target.name].text)){
-			inputs[e.target.name].status = 'error';
+   		if(!regexp.test(self.formInputs[e.target.name].text)){
+			self.formInputs[e.target.name].status = 'error';
 		}
-		grapher.dispatch('filling', null, false);
+		self.grapher.dispatch('filling', null, false);
 	}, 3400);
    }
    
@@ -152,7 +202,7 @@ class FormBox extends Component {
    
    onInputKeys(e){
    	this.formInputs[e.target.name] = { text:e.target.value, status: 'dirty' };
-   	this.debounced(e, this.grapher, this.formInputs)
+   	this.debounced(e, this)
    }
    
    onInputChange(e){
@@ -178,21 +228,26 @@ class FormBox extends Component {
 		
 	if(addListeners){
 		childInputProps = {
-			onChange: this.onInputChange.bind(this),
-		      	onKeyDown: this.onInputKeys.bind(this)
+			onInputChange: this.onInputChange.bind(this),
+		      	onInputKeyDown: this.onInputKeys.bind(this)
 		};
 		
 		childButtonProps = {
-			onClick: this.props.handleSubmit
+			onButtonClick: this.props.handleSubmit
 		}
 	}
 	
 	{/* https://mxstbr.blog/2017/02/react-children-deepdive/ */}
 	{(mode === 'empty') && Children.map(children, (child, i) => {
-		if(child.type === 'text' || child.type === 'chechbox') {
-			this.formInputs[child.name] = { text: child.value, status: 'pristine' }
+		if(child.type === 'text' || child.type === 'checkbox') {
+			this.formInputs[child.name] = { text: child.value, status: 'pristine' };
+			childInputProps.name = child.name;
+			childInputProps.type = child.type;
+			childInputProps.value = child.value;
 			return cloneElement(child, childInputProps);
 		}else if(child.type === 'button' && (Children.count(children) === i + 1)){
+			childInputProps.text = child.text;
+			childInputProps.type = child.type;
 			return cloneElement(child, childButtonProps);
 		}
 	})}
@@ -200,9 +255,14 @@ class FormBox extends Component {
 	{(mode === 'filling' || mode === 'filled') && Children.map(children, (child, i) => {
 		childInputProps.value = this.formInputs[child.name].text;
 		childInputProps.status = this.formInputs[child.name].status;
-		if(child.type === 'text' || child.type === 'chechbox') {
+		if(child.type === 'text' || child.type === 'checkbox') {
+			childInputProps.name = child.name;
+			childInputProps.type = child.type;
+			childInputProps.value = child.value;
 			return cloneElement(child, childInputProps);
 		}else if(child.type === 'button' && (Children.count(children) === i + 1)){
+			childInputProps.text = child.text;
+			childInputProps.type = child.type;
 			return cloneElement(child, childButtonProps);
 		}
 	})}
@@ -246,6 +306,8 @@ import ReactDOM from 'react-dom';
 import kahtox from 'kahtox';
 import { createStore, applyMiddleware } from 'redux';
 
+import Button from './Button.js';
+import Input from './Input.js';
 import FormBox from './Formbox.js';
 import TodoList from './TodoList.js';
 
@@ -343,20 +405,20 @@ class TodoApp extends Component {
 
 	return (
 		{(mode === 'idle') && <FormBox method="POST" mode={mode} handleSubmit={this.submitDataToServer.bind(this)}>
-		   <Input readonly=false name="todoTitle" value="" />
-		   <Input readonly=false name="todoDesc" value="" />
+		   <Input readonly=false name="todoTitle" value="" type="text" />
+		   <Input readonly=false name="todoDesc" value="" type="text" />
 		   <Input readonly=false type="checkbox" name="todoComplete" value="" />
 		   <Button disabled=false text="ADD" />
 		</FormBox> <hr /> <TodoList todos={todos} /> }
 		{(mode === 'before-send') && <FormBox method="POST" mode={mode} handleSubmit={this.submitDataToServer.bind(this)}>
-		   <Input readonly=false name="todoTitle" />
-		   <Input readonly=false name="todoDesc" />
+		   <Input readonly=false name="todoTitle" type="text" />
+		   <Input readonly=false name="todoDesc" type="text" />
 		   <Input readonly=false type="checkbox" name="todoComplete" />
 		   <Button disabled=true text="ADD" /> {/* Disable the button so submit event can't be triggere again */}
 		</FormBox> <hr /> <TodoList todos={todos} /> }
 		{(mode === 'sending') && <FormBox method="POST" mode={mode}>
-		   <Input readonly=true name="todoTitle" /> 
-		   <Input readonly=true name="todoDesc" />
+		   <Input readonly=true name="todoTitle" type="text" /> 
+		   <Input readonly=true name="todoDesc" type="text" />
 		   <Input readonly=true type="checkbox" name="todoComplete" /> 
 		   <Button disabled=true text="ADD" /> {/* Disable the entire form */}
 		</FormBox> <hr /> <TodoList todos={todos} /> }
