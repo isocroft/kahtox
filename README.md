@@ -46,6 +46,10 @@ In time past, when building web apps, we made use of *Redux* or *Radixx* as both
 | ------------------------- | ------------------------- |
 | <img src="before.png" />  | <img src="now.png" />     |
 
+## State Graphs (Diagrams)
+
+State graphs are just like state machines when depicted visually with diagrams but have a few differences.
+
 ## Getting Started
 
 > filename: Button.js
