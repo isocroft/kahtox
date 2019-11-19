@@ -3,6 +3,8 @@
 @created: 18th Nov, 2019
 */
 
+'use strict';
+
 const isLiteralFalsey = (variable) => {
     return (variable === "" || variable === false || variable === 0)
 }
@@ -86,7 +88,7 @@ class Grapher {
   dispatch(transitionEventName = '', domainLayerData = null){
     const grapherEvents = this.states[this.currentState] || {}; // grab all possible actions under this 'current state'
     const transitionMeta = grapherEvents[transitionEventName]; // grab the data state layer action we are interested in for this current 'dispatch'
-    const hasAction = false;
+    let hasAction = false;
       
     let nextState = (state) => { 
         this.prevState = this.currentState;
@@ -123,8 +125,11 @@ class Grapher {
 
 const kahtox = {
       makeGrapher(graph, wrapperFn){
+          if(!isPlainObject(graph)){
+          		graph = {$initial:'start', states:{}};
+          }
           if(!isFunction(wrapperFn)){
-            wrapperFn = () => true
+            	wrapperFn = () => true
           }
           return new Grapher(graph, wrapperFn);
       }
