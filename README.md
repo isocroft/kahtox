@@ -75,14 +75,16 @@ class Input extends Component {
 	}
 	
 	render(){
-		const type = this.props.type;
-		const value = this.props.value;
+		const type = this.props.type || 'text';
+		const value = this.props.value || '';
 		const name = this.props.name;
-		const onInputChange = this.props.onInputChange;
-		const onInputKeyDown = this.props.onInputKeyDown;
+		const onInputChange = this.props.onInputChange || (e) => true;
+		const onInputKeyDown = this.props.onInputKeyDown || (e) => true;
 		
 		return (
-			<input type={type} name={name} value={value} onChange={onInputChange} />
+			(type === 'checkbox' || type === 'radio' || type === 'hidden')
+			? <input type={type} name={name} value={value} onChange={onInputChange} />
+			: <input type={type} name={name} value={value} onChange={onInputChange} onKeyDown={onInputKeyDown} />
 		);
 	}
 }
