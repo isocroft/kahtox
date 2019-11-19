@@ -190,7 +190,7 @@ class FormBox extends Component {
 	
 	this.formInputs = {};
 	
-	this.grapher.afterTransition(mode => this.setState(prevState => Object.assign(prevState, { mode })))
+	this.grapher.afterTransition((mode, data, hasError) => this.setState(prevState => Object.assign(prevState, { mode })))
 	this.debounced = debounce(function(e, self) {
 		let regexp = new RegExp(e.target.getAttribute('data-pattern'));
    		if(!regexp.test(self.formInputs[e.target.name].text)){
@@ -245,8 +245,11 @@ class FormBox extends Component {
 		}
 	}
 	
+	return (
+	<div className="formWrapper">
 	{/* https://mxstbr.blog/2017/02/react-children-deepdive/ */}
-	
+	{(parentMode === 'before-send') && <h3>Please Wait....</h3>}
+	{(parentMode === 'sending') && <h3>Sending To Server...</h3>}
 	{(mode === 'empty') && <form name={name} method={this.props.method.toLowerCase()}>
 		Children.map(children, (child, i) => {
 			if(child.type === 'text' || child.type === 'checkbox') {
@@ -277,6 +280,7 @@ class FormBox extends Component {
 				return cloneElement(child, childButtonProps);
 			}
 		}) </form>}
+		</div> );
    }
 }
 
@@ -303,10 +307,10 @@ class TodoList extends Component {
 				{(parentMode === 'before-fetch') && <h3>Please Wait...</h3> }
 				{(parentMode === 'fetching') && <h3>Fetching From Server...</h3> }
 				<ul>
-				{(todos.length !== 0) && todos.map(function(todo){
+				{(parentMode === 'idle' && todos.length !== 0) && todos.map(function(todo){
 					return (<li><h3>{todo.title}</h3><p>{todo.desc}</p></li>);
 				})}
-				{(todos.length === 0) && <li><span>You have no Todos!</span></li>}
+				{(parentMode === 'idle' && todos.length === 0) && <li><span>You have no Todos!</span></li>}
 				</ul>
 			</div>
 		);
