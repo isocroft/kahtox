@@ -310,6 +310,7 @@ export default TodoList
 import React, { Component } from 'react';
 import ReactDOM from 'react-dom';
 import kahtox from 'kahtox';
+import think from 'redux-thunk';
 import { createStore, applyMiddleware } from 'redux';
 
 import Button from './Button.js';
@@ -317,38 +318,55 @@ import Input from './Input.js';
 import FormBox from './Formbox.js';
 import TodoList from './TodoList.js';
 
+function makeHttpRequestAndUpdate( payload, grapher, meta ) {
+  // Invert control!
+  // Return a function that accepts `dispatch` so we can dispatch later.
+  // Thunk middleware knows how to turn thunk async actions into actions.
+  return function() {
+    grapher.dispatch('http-req')
+    return fetchTodos(payload).then(
+      data => {
+      	grapher.dispatch('http-req-success', { todos: data });
+      },
+      error => {
+	grapher.dispatch('http-req-failure', { error });
+      }
+    )
+  }
+}
+
 let stateGraph = {
    $initial: 'idle',
    states:{
 	   'idle': {
 		send:{ // HTTP POST, PUT, PATCH, DELETE
 			nextState: 'before-send',
-			action:'addTodo'
+			action: '#thunk'
 		},
 		fetch:{ // HTTP GET, HEAD
 			nextState: 'before-fetch',
-			action: 'loadTodos'
+			action: '#thunk'
 		}
 	   },
 
 	   'before-fetch': {
 		'http-req': { 
 			nextState:'fetching',
-			action:null
+			action: null
 		}
 	   },
 
 	   'before-send': {
 		'http-req': {
 			nextState:'sending',
-			action:null
+			action: null
 		}
 	   },
 
 	   'fetching':{
 		'http-req-success':{
 			nextState: 'idle',
-			action:null
+			action: 'LOAD_TODOS'
 		},
 		'http-req-failure':{
 			nextState: 'idle',
@@ -359,11 +377,12 @@ let stateGraph = {
 	   'sending': {
 	       'http-req-success':{
 			nextState: 'idle',
-			action:null
+			action:'ADD_TODOS'
 		},
 		'http-req-failure':{
 			nextState: 'idle',
-			action:null
+			action:null,
+			notifyView: true
 		}
 	   }
    }
@@ -375,16 +394,25 @@ let store = createStore(function todos(state = [], action) {
     case 'LOAD_TODO':
       return state.concat(action.todos);
     case 'ADD_TODO':
-      return state.concat([action.text])
+      return state.concat([action.todo])
     default:
       return state
   }
-}, []);
+}, applyMiddleware(thunk));
 
 class TodoApp extends Component {
    constructor(prop){
 	super(props);
-	this.grapher = kahtox.makeGrapher(stateGraph, (actionType, payload) => store.dispatch({ type:actionType, payload }))
+	this.grapher = kahtox.makeGrapher(stateGraph, (action, { payload, grapher, meta }) => { 
+		switch(action){
+		   case '#thunk':
+			return store.dispatch(makeHttpRequestAndUpdate(payload, grapher, meta))
+		   case 'LOAD_TODOS':
+		       return store.dispatch({ type:action, todos: payload }) 
+		   case 'ADD_TODO':
+		       return store.dispatch({ type:action, todo: payload }) 
+		}
+	});
 	this.state = {
  		mode: this.grapher.initial,
 		parentMode: null,
@@ -394,11 +422,13 @@ class TodoApp extends Component {
 	let select = (state) => state.todos;
 	
 	store.subscribe(() => this.setState(prevState => Object.assign(prevState, { todos: select(store.getState()) })))
-	this.grapher.afterTransition(mode => this.setState(prevState => Object.assign(prevState, { mode })))
+	this.grapher.afterTransition((mode, data) => {
+		this.setState(prevState => Object.assign(prevState, { mode }))
+	})
    }
 
    componentDidMount(){
-	this.grapher.dispatch('fetch', { perPage: 5, page:0 });
+	this.grapher.dispatch('fetch', { url: 'https://localhost:4005/todos', method: 'GET', body:{ perPage: 5, page:0 } });
    }
    
    submitDataToServer(formData){
