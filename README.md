@@ -30,15 +30,17 @@ When state graphs are created, it should be created with reusability in mind. Fo
 
 Whenever your application goes into an error-state (Form Validation Errors, HTTP Errors), state graphs should NEVER ever deal with these situation. It should also never depict it as a state.
 
->Isolating State Containers From Most UI Updates
+>Isolating Domain State Containers From Unecessary View Layer (UI) Update Info Storage
 
 UI state is never meant to be tracked or persisted in a state container. UI state is only useful immediately before it causes a view re-render or view layer update. After that, it is no longer useful.
 
->UI State Changes Should Trigger View Layer Changes
+>UI State Changes Should Trigger View Layer (UI) Updates / Re-renders
 
 UI state changes (driven by state graphs) will mostly trigger view updates except when the state is going back to the `$initial` state. In other words, state graphs MUST always be unidirectional (directed) circular graphs which circle back to the `$initial` state.
 
-## Structure (In Words & Diagram)
+## Architecture
+
+In time past, when building web apps, we made use of *Redux* or *Radixx* as both a **UI State Layer library** and a **Domain State Layer library**. This unfortunately created a lot of jank with the *redux* state tree and made it difficult to use the **UI State** the way it ought to be used. However, these days, we separate the 2 **State Layers** making way for *Redux* or *Radixx* to only be used for the **Domain State Layer** and *Kahtox* to be used for the **UI State Layer**. See below:
 
 
 
@@ -101,8 +103,8 @@ export default Input;
 import React, { Component, Children, cloneElement } from 'react';
 import kahtox from 'kahtox';
 
-const validateFormGuard = function ({ data }){
-	return data.reduce(
+const validateFormGuard = function ({ payload }){
+	return payload.reduce(
 		(val, acc) => (
 			val.text.length !== 0 && val.status === 'pristine' && acc
 		), 
@@ -151,19 +153,17 @@ let stateGraph = {
 };
 
 const getUTF8StringSize = (str) => {
-
 	let sizeInBytes = str.split('')
-    .map(function( ch ) {
-      return ch.charCodeAt(0);
-    }).map(function( uchar ) {
-      // The reason for this is explained later in
-      // the section “An Aside on Text Encodings”
-      return uchar < 128 ? 1 : 2;
-    }).reduce(function( curr, next ) {
-      return curr + next;
-    }, 0);
-    
-  return sizeInBytes;
+	    .map(function( ch ) {
+	      return ch.charCodeAt(0);
+	    }).map(function( uchar ) {
+	      // The reason for this is explained later in
+	      // the section “An Aside on Text Encodings”
+	      return uchar < 128 ? 1 : 2;
+	    }).reduce(function( curr, next ) {
+	      return curr + next;
+	    }, 0);   
+  	return sizeInBytes;
 };
 
 const debounce = (func, wait, immediate) => {
