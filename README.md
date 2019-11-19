@@ -42,14 +42,6 @@ UI state changes (driven by state graphs) will mostly trigger view updates excep
 
 In time past, when building web apps, we made use of *Redux* or *Radixx* as both a **UI State Layer library** and a **Domain State Layer library**. This unfortunately created a lot of jank with the *redux* state tree and made it difficult to use the **UI State** the way it ought to be used. However, these days, we separate the 2 **State Layers** making way for *Redux* or *Radixx* to only be used for the **Domain State Layer** and *Kahtox* to be used for the **UI State Layer**. See below:
 
->BEFORE
-
-
-
->NOW
-
-
-
 | BEFORE                    | NOW	                |
 | ------------------------- | ------------------------- |
 | <img src="before.png" />  | <img src="now.png" />     |
