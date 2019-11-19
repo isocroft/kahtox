@@ -112,13 +112,15 @@ let stateGraph = {
 		'empty': {
 			'input-keys': {
 				nextState: 'filling',
-				action: null
+				action: null,
+				notifyView: false
 			}
 		},
 		'filling': {
 			'input-keys': {
 				nextState: 'filling',
-				action: null
+				action: null,
+				notifyView: false
 			},
 			'input-change': {
 				nextState: 'filling',
@@ -194,7 +196,7 @@ class FormBox extends Component {
    		if(!regexp.test(self.formInputs[e.target.name].text)){
 			self.formInputs[e.target.name].status = 'error';
 		}
-		self.grapher.dispatch('input-keys', null, false);
+		self.grapher.dispatch('input-keys');
 	}, 3400);
    }
    
@@ -238,40 +240,43 @@ class FormBox extends Component {
 		childButtonProps = {
 			onButtonClick: (e) => {
 				this.grapher.dispatch('button-click')
-				handleSubmit(e);
+				handleSubmit(this.formInputs);
 			}
 		}
 	}
 	
 	{/* https://mxstbr.blog/2017/02/react-children-deepdive/ */}
-	{(mode === 'empty') && Children.map(children, (child, i) => {
-		if(child.type === 'text' || child.type === 'checkbox') {
-			this.formInputs[child.name] = { text: child.value, status: 'pristine' };
-			childInputProps.name = child.name;
-			childInputProps.type = child.type;
-			childInputProps.value = child.value;
-			return cloneElement(child, childInputProps);
-		}else if(child.type === 'button' && (Children.count(children) === i + 1)){
-			childInputProps.text = child.text;
-			childInputProps.type = child.type;
-			return cloneElement(child, childButtonProps);
-		}
-	})}
 	
-	{(mode === 'filling' || mode === 'filled') && Children.map(children, (child, i) => {
-		childInputProps.value = this.formInputs[child.name].text;
-		childInputProps.status = this.formInputs[child.name].status;
-		if(child.type === 'text' || child.type === 'checkbox') {
-			childInputProps.name = child.name;
-			childInputProps.type = child.type;
-			childInputProps.value = child.value;
-			return cloneElement(child, childInputProps);
-		}else if(child.type === 'button' && (Children.count(children) === i + 1)){
-			childInputProps.text = child.text;
-			childInputProps.type = child.type;
-			return cloneElement(child, childButtonProps);
-		}
-	})}
+	{(mode === 'empty') && <form name={name} method={this.props.method.toLowerCase()}>
+		Children.map(children, (child, i) => {
+			if(child.type === 'text' || child.type === 'checkbox') {
+				this.formInputs[child.name] = { text: child.value, status: 'pristine' };
+				childInputProps.name = child.name;
+				childInputProps.type = child.type;
+				childInputProps.value = child.value;
+				return cloneElement(child, childInputProps);
+			}else if(child.type === 'button' && (Children.count(children) === i + 1)){
+				childInputProps.text = child.text;
+				childInputProps.type = child.type;
+				return cloneElement(child, childButtonProps);
+			}
+		})</form>}
+	
+	{(mode === 'filling' || mode === 'filled') && <form name={name} method={this.props.method.toLowerCase()}>
+		Children.map(children, (child, i) => {
+			childInputProps.value = this.formInputs[child.name].text;
+			childInputProps.status = this.formInputs[child.name].status;
+			if(child.type === 'text' || child.type === 'checkbox') {
+				childInputProps.name = child.name;
+				childInputProps.type = child.type;
+				childInputProps.value = child.value;
+				return cloneElement(child, childInputProps);
+			}else if(child.type === 'button' && (Children.count(children) === i + 1)){
+				childInputProps.text = child.text;
+				childInputProps.type = child.type;
+				return cloneElement(child, childButtonProps);
+			}
+		}) </form>}
    }
 }
 
@@ -291,12 +296,19 @@ class TodoList extends Component {
 	
 	render(){
 		const todos = this.props.todos;
+		const parentMode = this.props.mode;
+		
 		return (
-			<ul>
-			{todos.map(function(todo){
-				return (<li><h3>{todo.title}</h3><p>{todo.desc}</p></li>);
-			})}
-			</ul>
+			<div className="todoWrapper">
+				{(parentMode === 'before-fetch') && <h3>Please Wait...</h3> }
+				{(parentMode === 'fetching') && <h3>Fetching From Server...</h3> }
+				<ul>
+				{(todos.length !== 0) && todos.map(function(todo){
+					return (<li><h3>{todo.title}</h3><p>{todo.desc}</p></li>);
+				})}
+				{(todos.length === 0) && <li><span>You have no Todos!</span></li>}
+				</ul>
+			</div>
 		);
 	}
 }
@@ -318,18 +330,21 @@ import Input from './Input.js';
 import FormBox from './Formbox.js';
 import TodoList from './TodoList.js';
 
+
 function makeHttpRequestAndUpdate( payload, grapher, meta ) {
   // Invert control!
   // Return a function that accepts `dispatch` so we can dispatch later.
   // Thunk middleware knows how to turn thunk async actions into actions.
   return function() {
     grapher.dispatch('http-req')
-    return fetchTodos(payload).then(
+    let url = payload.url;
+    delete payload.url;
+    return fetch(url, payload).then(
       data => {
       	grapher.dispatch('http-req-success', { todos: data });
       },
       error => {
-	grapher.dispatch('http-req-failure', { error });
+	grapher.dispatch('http-req-failure', error);
       }
     )
   }
@@ -428,11 +443,21 @@ class TodoApp extends Component {
    }
 
    componentDidMount(){
-	this.grapher.dispatch('fetch', { url: 'https://localhost:4005/todos', method: 'GET', body:{ perPage: 5, page:0 } });
+	this.grapher.dispatch('fetch', { 
+		url: 'https://localhost:4005/todos',  
+		credentials: 'same-origin', 
+		method: 'GET', 
+		body: { perPage: 5, page:0 } 
+	});
    }
    
    submitDataToServer(formData){
-   	this.grapher.dispatch('send', { url: 'https://localhost:4005/todos', method: 'POST', body:formData });
+   	this.grapher.dispatch('send', { 
+		url: 'https://localhost:4005/todos', 
+		credentials: 'same-origin', 
+		method: 'POST', 
+		body:formData 
+    	});
    }
 
    render(){
@@ -440,24 +465,24 @@ class TodoApp extends Component {
 	const todos = this.state.todos;
 
 	return (
-		{(mode === 'idle') && <FormBox method="POST" mode={mode} handleSubmit={this.submitDataToServer.bind(this)}>
+		{(mode === 'idle') && <FormBox name="todos" method="POST" mode={mode} handleSubmit={this.submitDataToServer.bind(this)}>
 		   <Input readonly=false name="todoTitle" value="" type="text" />
 		   <Input readonly=false name="todoDesc" value="" type="text" />
 		   <Input readonly=false type="checkbox" name="todoComplete" value="" />
-		   <Button disabled=false text="ADD" />
-		</FormBox> <hr /> <TodoList todos={todos} /> }
-		{(mode === 'before-send') && <FormBox method="POST" mode={mode} handleSubmit={this.submitDataToServer.bind(this)}>
+		   <Button type="button" disabled={false} text="ADD" />
+		</FormBox> <hr /> <TodoList todos={todos} mode={mode} /> }
+		{(mode === 'before-send' || mode === 'before-fetch') && <FormBox name="todos" method="POST" mode={mode} handleSubmit={this.submitDataToServer.bind(this)}>
 		   <Input readonly=false name="todoTitle" type="text" />
 		   <Input readonly=false name="todoDesc" type="text" />
 		   <Input readonly=false type="checkbox" name="todoComplete" />
-		   <Button disabled=true text="ADD" /> {/* Disable the button so submit event can't be triggere again */}
-		</FormBox> <hr /> <TodoList todos={todos} /> }
-		{(mode === 'sending') && <FormBox method="POST" mode={mode}>
+		   <Button type="button" disabled={true} text="ADD" /> {/* Disable the button so submit event can't be triggere again */}
+		</FormBox> <hr /> <TodoList todos={todos} mode={mode} /> }
+		{(mode === 'sending' || mode === 'fetching') && <FormBox name="todos" method="POST" mode={mode}>
 		   <Input readonly=true name="todoTitle" type="text" /> 
 		   <Input readonly=true name="todoDesc" type="text" />
 		   <Input readonly=true type="checkbox" name="todoComplete" /> 
-		   <Button disabled=true text="ADD" /> {/* Disable the entire form */}
-		</FormBox> <hr /> <TodoList todos={todos} /> }
+		   <Button type="button" disabled={true} text="ADD" /> {/* Disable the entire form */}
+		</FormBox> <hr /> <TodoList todos={todos} mode={mode} /> }
 	)
    }
 }
