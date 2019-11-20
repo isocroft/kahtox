@@ -105,14 +105,16 @@ class Grapher {
     if ((!isNull(transitionMeta) || !isUndefined(transitionMeta)) 
           && isPlainObject(transitionMeta)) { 
         hasAction = isString(transitionMeta.action);
-      if(!isFunction(transitionMeta.guard) || (transitionMeta.guard({ payload: domainLayerData }) === true)){
+      if (!isFunction(transitionMeta.guard) || (transitionMeta.guard({ payload: domainLayerData }) === true)){
            nextState(transitionMeta.nextState); // change the state - new current state
       }
-      if(hasAction) {
-        this.domainStateLayerWrapperFn(transitionMeta.action, { payload: domainLayerData, grapher: this, meta: transitionMeta });
+      if (hasAction) {
+          if (isFunction(this.domainStateLayerWrapperFn)) {
+            this.domainStateLayerWrapperFn(transitionMeta.action, { payload: domainLayerData, grapher: this, meta: transitionMeta });
+          }
       }
     }else{
-        if(isPlainObject(console) && isFunction(console.error)){
+        if (isPlainObject(console) && isFunction(console.error)){
             console.error(`Invalid State Transition For State Graph: from '${this.currentState}'`);
         }
     }
