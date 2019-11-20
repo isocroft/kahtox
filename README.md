@@ -46,6 +46,12 @@ In time past, when building web apps, we made use of *Redux* or *Radixx* as both
 | ------------------------- | ------------------------- |
 | <img src="before.png" />  | <img src="now.png" />     |
 
+Even the **Redux Docs** had [this](https://redux.js.org/faq/organizing-state#do-i-have-to-put-all-my-state-into-redux-should-i-ever-use-reacts-setstate) to say about how to organize state. I  that you do infact have to separate your **UI State** from your **Domain State** as it is not useful in anyway to bring both state into *Redux*. Another point to this is how separating the **UI State** and **Domain State** makes it easy for you to [co-locate](https://kentcdodds.com/blog/state-colocation-will-make-your-react-app-faster) your **UI State** into the component where it is needed the most and have better access to the **Domain State**.
+
+Here is what *Kent .C. Dodds* had to say on the issue of **co-location** of state:
+
+>Where I see this principle apply in real-world applications is when people put things into a global Redux store or in a global context that don't really need to be global.
+
 ## State Graphs (Diagrams)
 
 State graphs are just like state machines when depicted visually with diagrams but have a few differences.
