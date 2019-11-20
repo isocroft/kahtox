@@ -46,7 +46,7 @@ In time past, when building web apps, we made use of *Redux* or *Radixx* as both
 | ------------------------- | ------------------------- |
 | <img src="before.png" />  | <img src="now.png" />     |
 
-Even the **Redux Docs** had [this](https://redux.js.org/faq/organizing-state#do-i-have-to-put-all-my-state-into-redux-should-i-ever-use-reacts-setstate) to say about how to organize state. I  that you do infact have to separate your **UI State** from your **Domain State** as it is not useful in anyway to bring both state into *Redux*. Another point to this is how separating the **UI State** and **Domain State** makes it easy for you to [co-locate](https://kentcdodds.com/blog/state-colocation-will-make-your-react-app-faster) your **UI State** into the component where it is needed the most and have better access to the **Domain State**.
+Even the **Redux Docs** had [this](https://redux.js.org/faq/organizing-state#do-i-have-to-put-all-my-state-into-redux-should-i-ever-use-reacts-setstate) to say about how to organize state. I believe it is crucial to separate your **UI State** from your **Domain State** as it is not useful in anyway to bring both state into *Redux*. Another point to this is how separating the **UI State** and **Domain State** makes it easy for you to [co-locate](https://kentcdodds.com/blog/state-colocation-will-make-your-react-app-faster) your **UI State** into the component where it is needed the most and have better access to the **Domain State**.
 
 Here is what *Kent .C. Dodds* had to say on the issue of **co-location** of state:
 
@@ -95,14 +95,17 @@ class Input extends Component {
 	render(){
 		const type = this.props.type || 'text';
 		const value = this.props.value || '';
+		const status = this.props.status || 'pristine';
+		const pattern = this.props.pattern || '[^\\S\\f\\t\\b\\n\\r]+';
 		const name = this.props.name;
+		
 		const onInputChange = this.props.onInputChange || (e) => true;
 		const onInputKeyDown = this.props.onInputKeyDown || (e) => true;
 		
 		return (
 			(type === 'checkbox' || type === 'radio' || type === 'hidden')
-			? <input type={type} name={name} value={value} onChange={onInputChange} />
-			: <input type={type} name={name} value={value} onChange={onInputChange} onKeyDown={onInputKeyDown} />
+			? <input type={type} data-status={status} name={name} value={value} onChange={onInputChange} />
+			: <input type={type} data-status={status} data-pattern={pattern} name={name} value={value} onChange={onInputChange} onKeyDown={onInputKeyDown} />
 		);
 	}
 }
@@ -130,15 +133,14 @@ let stateGraph = {
 		'empty': {
 			'input-keys': {
 				nextState: 'filling',
-				action: null,
-				notifyView: false
+				action: null
+				/* notifyView: false */
 			}
 		},
 		'filling': {
 			'input-keys': {
 				nextState: 'filling',
-				action: null,
-				notifyView: false
+				action: null
 			},
 			'input-change': {
 				nextState: 'filling',
@@ -198,22 +200,32 @@ class FormBox extends Component {
    constructor(prop){
 	super(props);
 	this.grapher = kahtox.makeGrapher(stateGraph)
+	
+	let controls = {};
+	
+	this.props.children.forEach(function looper(child){
+		controls[child.name] = { text: child.value, status: child.status }; // status:'pristine'
+	});
+	
 	this.state = {
 		mode: this.grapher.initial,
 		parentMode: this.props.mode,
+		controls: controls,
 		elements: this.props.children
 	}
 	
-	this.formInputs = {};
-	
-	this.grapher.afterTransition((mode, data, hasError) => this.setState(prevState => Object.assign(prevState, { mode })))
-	this.debounced = debounce(function(e, self) {
-		let regexp = new RegExp(e.target.getAttribute('data-pattern'));
-   		if(!regexp.test(self.formInputs[e.target.name].text)){
-			self.formInputs[e.target.name].status = 'error';
+	this.grapher.afterTransition((mode, data, isError) => {
+		let updatePatch = { mode };
+		
+		if(data !== null 
+			&& !isError){
+			updatePatch.controls = data;
 		}
-		self.grapher.dispatch('input-keys');
-	}, 3400);
+		
+		this.setState(
+			prevState => Object.assign(prevState, updatePatch)
+		)
+	})
    }
    
    componentDidMount(){
@@ -221,13 +233,33 @@ class FormBox extends Component {
    }
    
    onInputKeys(e){
-   	this.formInputs[e.target.name] = { text:e.target.value, status: 'dirty' };
-   	this.debounced(e, this)
+   	let data = this.state.controls;
+	let regexp = null;
+
+	data[e.target.name].text = e.target.value;
+	data[e.target.name].status =  'dirty';
+
+	if(e.target.type === 'checkbox'){
+		data[e.target.name].status = 'pristine';
+	}
+
+	if(e.target.type === 'text'){
+		regexp = new RegExp(e.target.getAttribute('data-pattern'));
+
+		if(!regexp.test(data[e.target.name].text)){
+			data[e.target.name].status = 'error';
+		}
+	}
+
+	this.grapher.dispatch('input-keys', data);
    }
    
    onInputChange(e){
-   	this.formInputs[e.target.name] = { text:e.target.value, status:e.target.getAttribute('data-input-status') };
-	this.grapher.dispatch('input-change');
+   	let data = this.state.controls;
+	data[e.target.name].text = e.target.value;
+	data[e.target.name].status = e.target.getAttribute('data-status');
+	
+	this.grapher.dispatch('input-change', data);
    }
    
    render(){
@@ -240,6 +272,7 @@ class FormBox extends Component {
 	let childInputProps = {
 	
 	};
+	
 	let childButtonProps = {
 	
 	};
@@ -256,7 +289,11 @@ class FormBox extends Component {
 		childButtonProps = {
 			onButtonClick: (e) => {
 				this.grapher.dispatch('button-click')
-				handleSubmit(this.formInputs);
+				let controls = this.state.controls;
+				
+				delete controls[e.target.name];
+				
+				handleSubmit(controls);
 			}
 		}
 	}
@@ -269,7 +306,6 @@ class FormBox extends Component {
 	{(mode === 'empty') && <form name={name} method={this.props.method.toLowerCase()}>
 		Children.map(children, (child, i) => {
 			if(child.type === 'text' || child.type === 'checkbox') {
-				this.formInputs[child.name] = { text: child.value, status: 'pristine' };
 				childInputProps.name = child.name;
 				childInputProps.type = child.type;
 				childInputProps.value = child.value;
@@ -324,7 +360,7 @@ class TodoList extends Component {
 				{(parentMode === 'fetching') && <h3>Fetching From Server...</h3> }
 				<ul>
 				{(parentMode === 'idle' && todos.length !== 0) && todos.map(function(todo){
-					return (<li><h3>{todo.title}</h3><p>{todo.desc}</p></li>);
+					return (<li><h3>{todo.title}</h3><p><input type="checkbox" checked={todo.completed} /><span>{todo.desc}</span></p></li>);
 				})}
 				{(parentMode === 'idle' && todos.length === 0) && <li><span>You have no Todos!</span></li>}
 				</ul>
@@ -457,7 +493,8 @@ class TodoApp extends Component {
 	let select = (state) => state.todos;
 	
 	store.subscribe(() => this.setState(prevState => Object.assign(prevState, { todos: select(store.getState()) })))
-	this.grapher.afterTransition((mode, data) => {
+	this.grapher.afterTransition((mode, data, isError) => {
+		
 		this.setState(prevState => Object.assign(prevState, { mode }))
 	})
    }
@@ -486,20 +523,20 @@ class TodoApp extends Component {
 
 	return (
 		{(mode === 'idle') && <FormBox name="todos" method="POST" mode={mode} handleSubmit={this.submitDataToServer.bind(this)}>
-		   <Input readonly=false name="todoTitle" value="" type="text" />
-		   <Input readonly=false name="todoDesc" value="" type="text" />
+		   <Input readonly=false name="todoTitle" value="" type="text" pattern="[a-zA-Z0-9]+" />
+		   <Input readonly=false name="todoDesc" value="" type="text"  pattern="[a-zA-Z ]+" />
 		   <Input readonly=false type="checkbox" name="todoComplete" value="" />
 		   <Button type="button" disabled={false} text="ADD" />
 		</FormBox> <hr /> <TodoList todos={todos} mode={mode} /> }
 		{(mode === 'before-send' || mode === 'before-fetch') && <FormBox name="todos" method="POST" mode={mode} handleSubmit={this.submitDataToServer.bind(this)}>
-		   <Input readonly=false name="todoTitle" type="text" />
-		   <Input readonly=false name="todoDesc" type="text" />
+		   <Input readonly=false name="todoTitle" type="text" pattern="[a-zA-Z0-9]+" />
+		   <Input readonly=false name="todoDesc" type="text" pattern="[a-zA-Z ]+" />
 		   <Input readonly=false type="checkbox" name="todoComplete" />
 		   <Button type="button" disabled={true} text="ADD" /> {/* Disable the button so submit event can't be triggere again */}
 		</FormBox> <hr /> <TodoList todos={todos} mode={mode} /> }
 		{(mode === 'sending' || mode === 'fetching') && <FormBox name="todos" method="POST" mode={mode}>
-		   <Input readonly=true name="todoTitle" type="text" /> 
-		   <Input readonly=true name="todoDesc" type="text" />
+		   <Input readonly=true name="todoTitle" type="text" pattern="[a-zA-Z0-9]+" /> 
+		   <Input readonly=true name="todoDesc" type="text" pattern="[a-zA-Z ]+" />
 		   <Input readonly=true type="checkbox" name="todoComplete" /> 
 		   <Button type="button" disabled={true} text="ADD" /> {/* Disable the entire form */}
 		</FormBox> <hr /> <TodoList todos={todos} mode={mode} /> }
